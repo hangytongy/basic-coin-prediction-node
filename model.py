@@ -70,6 +70,7 @@ def format_data():
         price_df = pd.concat([price_df, df])
 
     price_df.sort_index().to_csv(training_price_data_path)
+    print(price_df.head(5))
 
 
 def train_model():
