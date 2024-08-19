@@ -8,6 +8,7 @@ from sklearn.linear_model import LinearRegression
 from updater import download_binance_monthly_data, download_binance_daily_data
 from config import data_base_path, model_file_path
 
+from prophet import Prophet
 
 binance_data_path = os.path.join(data_base_path, "binance/futures-klines")
 training_price_data_path = os.path.join(data_base_path, "eth_price_data.csv")
@@ -17,7 +18,7 @@ def download_data():
     cm_or_um = "um"
     symbols = ["ETHUSDT"]
     intervals = ["1d"]
-    years = ["2020", "2021", "2022", "2023", "2024"]
+    years = ["2022","2023", "2024"]
     months = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
     download_path = binance_data_path
     download_binance_monthly_data(
@@ -70,7 +71,6 @@ def format_data():
         price_df = pd.concat([price_df, df])
 
     price_df.sort_index().to_csv(training_price_data_path)
-    print(price_df.head(5))
 
 
 def train_model():
@@ -78,13 +78,17 @@ def train_model():
     price_data = pd.read_csv(training_price_data_path)
     df = pd.DataFrame()
 
+
     # Convert 'date' to a numerical value (timestamp) we can use for regression
     df["date"] = pd.to_datetime(price_data["date"])
     df["date"] = df["date"].map(pd.Timestamp.timestamp)
 
+    df["date"] = df["date"].apply(lambda x: datetime.fromtimestamp(x).strftime('%Y-%m-%d'))
+
+    #df["price"] = price_data[["close"]].mean(axis=1)
     df["price"] = price_data[["open", "close", "high", "low"]].mean(axis=1)
 
-    print(f"model data/n{df.head(5)}")
+    print(f"original df\n {df}")
 
     # Reshape the data to the shape expected by sklearn
     x = df["date"].values.reshape(-1, 1)
@@ -93,9 +97,22 @@ def train_model():
     # Split the data into training set and test set
     x_train, _, y_train, _ = train_test_split(x, y, test_size=0.2, random_state=0)
 
-    # Train the model
-    model = LinearRegression()
-    model.fit(x_train, y_train)
+    # using prophet
+    df_new = df.copy()
+    df_new.rename(columns = {'date': 'ds', 'price': 'y'}, inplace=True)
+
+    print(f"new df \n {df_new}")
+
+    model = Prophet(
+    changepoint_prior_scale=0.3,
+    holidays_prior_scale=0,
+    seasonality_prior_scale=8,
+    weekly_seasonality=True,
+    yearly_seasonality=True,
+    daily_seasonality=True)
+
+    model = model.fit(df_new)
+
 
     # create the model's parent directory if it doesn't exist
     os.makedirs(os.path.dirname(model_file_path), exist_ok=True)
@@ -105,3 +122,14 @@ def train_model():
         pickle.dump(model, f)
 
     print(f"Trained model saved to {model_file_path}")
+
+    latest_date = df['date'].iloc[-1]
+    print(f"latest date : {latest_date}")
+
+    with open('latest_date.txt', 'w') as file:
+        file.write(latest_date)
+
+    future = model.make_future_dataframe(periods = 1)
+    forcast = model.predict(future)
+
+    print(f"test pred for tmr : {forcast['yhat'].iloc[-1]}")

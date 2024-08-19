@@ -2,10 +2,12 @@ import json
 import pickle
 import pandas as pd
 import numpy as np
-from datetime import datetime
+from datetime import datetime,timedelta
 from flask import Flask, jsonify, Response
 from model import download_data, format_data, train_model
 from config import model_file_path
+
+from prophet import Prophet
 
 app = Flask(__name__)
 
@@ -19,14 +21,35 @@ def update_data():
 
 def get_eth_inference():
     """Load model and predict current price."""
+    print("---pred price---")
     with open(model_file_path, "rb") as f:
         loaded_model = pickle.load(f)
 
-    now_timestamp = pd.Timestamp(datetime.now()).timestamp()
-    X_new = np.array([now_timestamp]).reshape(-1, 1)
-    current_price_pred = loaded_model.predict(X_new)
+    today_date = datetime.today().date()
+    tmr_date = today_date + timedelta(days=1)
+    tmr_date = tmr_date.strftime('%Y-%m-%d')
 
-    return current_price_pred[0][0]
+    print(f"tmr date : {tmr_date}")
+
+    tmr_date = datetime.strptime(tmr_date,'%Y-%m-%d')
+
+    with open('latest_date.txt', 'r') as file:
+        latest_date = file.read()
+
+    print(f"latest date from df {latest_date}")
+
+    latest_date = datetime.strptime(latest_date,'%Y-%m-%d')
+
+    period = (tmr_date - latest_date).days
+
+    print(f"period = {period}")
+
+    future = loaded_model.make_future_dataframe(periods = period)
+    forcast = loaded_model.predict(future)
+
+    print(f"pred price : {forcast['yhat'].iloc[-1]}")
+
+    return forcast['yhat'].iloc[-1]
 
 
 @app.route("/inference/<string:token>")
