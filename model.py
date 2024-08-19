@@ -84,6 +84,8 @@ def train_model():
 
     df["price"] = price_data[["open", "close", "high", "low"]].mean(axis=1)
 
+    print(f"model data/n{df.head(5)}")
+
     # Reshape the data to the shape expected by sklearn
     x = df["date"].values.reshape(-1, 1)
     y = df["price"].values.reshape(-1, 1)
