@@ -88,8 +88,6 @@ def train_model():
     #df["price"] = price_data[["close"]].mean(axis=1)
     df["price"] = price_data[["open", "close", "high", "low"]].mean(axis=1)
 
-    print(f"original df\n {df}")
-
     # Reshape the data to the shape expected by sklearn
     x = df["date"].values.reshape(-1, 1)
     y = df["price"].values.reshape(-1, 1)
@@ -100,8 +98,6 @@ def train_model():
     # using prophet
     df_new = df.copy()
     df_new.rename(columns = {'date': 'ds', 'price': 'y'}, inplace=True)
-
-    print(f"new df \n {df_new}")
 
     model = Prophet(
     changepoint_prior_scale=0.3,
@@ -128,8 +124,3 @@ def train_model():
 
     with open('latest_date.txt', 'w') as file:
         file.write(latest_date)
-
-    future = model.make_future_dataframe(periods = 1)
-    forcast = model.predict(future)
-
-    print(f"test pred for tmr : {forcast['yhat'].iloc[-1]}")
